@@ -6,19 +6,26 @@ void main() {
   runApp(const MyApp());
 }
 
-/// Raspberry Pi terminal color palette
+/// Modern dark theme color palette
 class TerminalColors {
-  static const Color background = Color(0xFF0C0C0C);
-  static const Color surface = Color(0xFF1A1A1A);
-  static const Color surfaceLight = Color(0xFF2D2D2D);
-  static const Color green = Color(0xFF00FF00);
-  static const Color greenDim = Color(0xFF00AA00);
-  static const Color greenBright = Color(0xFF33FF33);
-  static const Color red = Color(0xFFFF5555);
-  static const Color yellow = Color(0xFFFFFF55);
-  static const Color cyan = Color(0xFF55FFFF);
-  static const Color white = Color(0xFFCCCCCC);
-  static const Color grey = Color(0xFF888888);
+  static const Color background = Color(0xFF121218);
+  static const Color surface = Color(0xFF1E1E26);
+  static const Color surfaceLight = Color(0xFF2A2A35);
+  static const Color primary = Color(0xFF5DADE2); // Soft teal/cyan
+  static const Color primaryDim = Color(0xFF3498DB); // Deeper blue
+  static const Color accent = Color(0xFF58D68D); // Soft green for success
+  static const Color red = Color(0xFFE74C3C); // Softer red
+  static const Color yellow = Color(0xFFF4D03F); // Warmer yellow
+  static const Color cyan = Color(0xFF5DADE2); // Teal accent
+  static const Color text = Color(0xFFE8E8E8); // Light text
+  static const Color textDim = Color(0xFFB0B0B0); // Dimmed text
+  static const Color grey = Color(0xFF6C6C7A); // Muted grey
+
+  // Semantic aliases
+  static const Color green = accent;
+  static const Color greenDim = Color(0xFF45B39D);
+  static const Color greenBright = accent;
+  static const Color white = text;
 }
 
 class MyApp extends StatelessWidget {
@@ -27,84 +34,127 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'BLE Terminal',
+      title: 'WhalePi',
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: TerminalColors.background,
         colorScheme: ColorScheme.dark(
-          primary: TerminalColors.green,
-          secondary: TerminalColors.greenDim,
+          primary: TerminalColors.primary,
+          secondary: TerminalColors.primaryDim,
           surface: TerminalColors.surface,
           onPrimary: TerminalColors.background,
           onSecondary: TerminalColors.background,
-          onSurface: TerminalColors.green,
+          onSurface: TerminalColors.text,
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: TerminalColors.surface,
-          foregroundColor: TerminalColors.green,
+          foregroundColor: TerminalColors.text,
           elevation: 0,
           titleTextStyle: TextStyle(
             fontFamily: 'monospace',
             fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: TerminalColors.green,
+            fontWeight: FontWeight.w500,
+            color: TerminalColors.text,
           ),
-          iconTheme: IconThemeData(color: TerminalColors.green),
+          iconTheme: IconThemeData(color: TerminalColors.primary),
         ),
         textTheme: const TextTheme(
-          bodyLarge: TextStyle(fontFamily: 'monospace', color: TerminalColors.green),
-          bodyMedium: TextStyle(fontFamily: 'monospace', color: TerminalColors.green),
-          bodySmall: TextStyle(fontFamily: 'monospace', color: TerminalColors.greenDim),
-          titleLarge: TextStyle(fontFamily: 'monospace', color: TerminalColors.green),
-          titleMedium: TextStyle(fontFamily: 'monospace', color: TerminalColors.green),
-          labelLarge: TextStyle(fontFamily: 'monospace', color: TerminalColors.green),
+          bodyLarge: TextStyle(
+            fontFamily: 'monospace',
+            color: TerminalColors.text,
+          ),
+          bodyMedium: TextStyle(
+            fontFamily: 'monospace',
+            color: TerminalColors.text,
+          ),
+          bodySmall: TextStyle(
+            fontFamily: 'monospace',
+            color: TerminalColors.textDim,
+          ),
+          titleLarge: TextStyle(
+            fontFamily: 'monospace',
+            color: TerminalColors.text,
+          ),
+          titleMedium: TextStyle(
+            fontFamily: 'monospace',
+            color: TerminalColors.text,
+          ),
+          labelLarge: TextStyle(
+            fontFamily: 'monospace',
+            color: TerminalColors.text,
+          ),
         ),
-        iconTheme: const IconThemeData(color: TerminalColors.green),
+        iconTheme: const IconThemeData(color: TerminalColors.primary),
         listTileTheme: const ListTileThemeData(
-          textColor: TerminalColors.green,
-          iconColor: TerminalColors.green,
+          textColor: TerminalColors.text,
+          iconColor: TerminalColors.primary,
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: TerminalColors.surface,
-            foregroundColor: TerminalColors.green,
-            side: const BorderSide(color: TerminalColors.green),
-            textStyle: const TextStyle(fontFamily: 'monospace'),
+            backgroundColor: TerminalColors.surfaceLight,
+            foregroundColor: TerminalColors.primary,
+            side: const BorderSide(color: TerminalColors.primary),
+            textStyle: const TextStyle(
+              fontFamily: 'monospace',
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: TerminalColors.surface,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(4),
-            borderSide: const BorderSide(color: TerminalColors.green),
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: TerminalColors.grey),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(4),
-            borderSide: const BorderSide(color: TerminalColors.greenDim),
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: TerminalColors.grey),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(4),
-            borderSide: const BorderSide(color: TerminalColors.green, width: 2),
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(
+              color: TerminalColors.primary,
+              width: 2,
+            ),
           ),
-          hintStyle: const TextStyle(fontFamily: 'monospace', color: TerminalColors.grey),
-          labelStyle: const TextStyle(fontFamily: 'monospace', color: TerminalColors.green),
+          hintStyle: const TextStyle(
+            fontFamily: 'monospace',
+            color: TerminalColors.grey,
+          ),
+          labelStyle: const TextStyle(
+            fontFamily: 'monospace',
+            color: TerminalColors.textDim,
+          ),
         ),
         snackBarTheme: const SnackBarThemeData(
-          backgroundColor: TerminalColors.surface,
-          contentTextStyle: TextStyle(fontFamily: 'monospace', color: TerminalColors.green),
+          backgroundColor: TerminalColors.surfaceLight,
+          contentTextStyle: TextStyle(
+            fontFamily: 'monospace',
+            color: TerminalColors.text,
+          ),
         ),
         dialogTheme: const DialogThemeData(
           backgroundColor: TerminalColors.surface,
-          titleTextStyle: TextStyle(fontFamily: 'monospace', color: TerminalColors.green, fontSize: 18),
-          contentTextStyle: TextStyle(fontFamily: 'monospace', color: TerminalColors.green),
+          titleTextStyle: TextStyle(
+            fontFamily: 'monospace',
+            color: TerminalColors.text,
+            fontSize: 18,
+          ),
+          contentTextStyle: TextStyle(
+            fontFamily: 'monospace',
+            color: TerminalColors.text,
+          ),
         ),
         popupMenuTheme: const PopupMenuThemeData(
           color: TerminalColors.surface,
-          textStyle: TextStyle(fontFamily: 'monospace', color: TerminalColors.green),
+          textStyle: TextStyle(
+            fontFamily: 'monospace',
+            color: TerminalColors.text,
+          ),
         ),
         progressIndicatorTheme: const ProgressIndicatorThemeData(
-          color: TerminalColors.green,
+          color: TerminalColors.primary,
         ),
         useMaterial3: true,
       ),

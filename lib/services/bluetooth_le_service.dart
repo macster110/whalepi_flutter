@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 /// Callback types for BLE events
 typedef OnDataReceived = void Function(Uint8List data);
 typedef OnConnectionStateChanged = void Function(bool connected);
 typedef OnError = void Function(String error);
+typedef OnLog = void Function(String message);
 
 /// Common BLE UART Service UUIDs (Nordic UART Service)
 class BleUartUuids {
@@ -64,6 +65,12 @@ class BluetoothLeService {
   OnDataReceived? onDataReceived;
   OnConnectionStateChanged? onConnectionStateChanged;
   OnError? onError;
+  OnLog? onLog;
+
+  void _log(String message) {
+    debugPrint('[BLE] $message');
+    onLog?.call(message);
+  }
 
   /// Check if Bluetooth is supported
   Future<bool> get isSupported async {
@@ -150,7 +157,43 @@ class BluetoothLeService {
   /// Discover UART service and characteristics
   Future<bool> _discoverUartService(BluetoothDevice device) async {
     try {
-      final services = await device.discoverServices();
+      // Request higher MTU for better throughput (important for some devices)
+      try {
+        await device.requestMtu(512);
+      } catch (e) {
+        // MTU request may fail on some platforms, ignore
+      }
+
+      // Clear macOS/iOS GATT cache to avoid stale handles
+      try {
+        await device.clearGattCache();
+        _log('GATT cache cleared');
+      } catch (e) {
+        _log('clearGattCache not supported: $e');
+      }
+
+      await device.discoverServices();
+      
+      // Wait for iOS/macOS to finish setting up all handles/descriptors
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Use servicesList to get fresh references after discovery completes
+      final services = device.servicesList;
+
+      // Log discovered services for debugging
+      _log('Discovered ${services.length} services');
+      for (final service in services) {
+        _log('Service: ${service.uuid}');
+        for (final char in service.characteristics) {
+          _log(
+            '  Char: ${char.uuid} '
+            'W=${char.properties.write} '
+            'WnR=${char.properties.writeWithoutResponse} '
+            'N=${char.properties.notify} '
+            'I=${char.properties.indicate}',
+          );
+        }
+      }
 
       for (final service in services) {
         final uartChars = _findUartCharacteristics(service);
@@ -158,9 +201,33 @@ class BluetoothLeService {
           _txCharacteristic = uartChars.txCharacteristic;
           _rxCharacteristic = uartChars.rxCharacteristic;
 
+          _log('Found UART service: ${service.uuid}');
+          // Don't break — keep iterating to find the LAST matching service,
+          // which has the freshest/valid handles on iOS/macOS.
+        }
+      }
+
+      if (_txCharacteristic != null || _rxCharacteristic != null) {
+          _log('Using TX: ${_txCharacteristic?.uuid}');
+          _log('Using RX: ${_rxCharacteristic?.uuid}');
+
           // Enable notifications on RX characteristic
           if (_rxCharacteristic != null) {
-            await _rxCharacteristic!.setNotifyValue(true);
+            // Small delay to ensure connection is stable
+            await Future.delayed(const Duration(milliseconds: 100));
+
+            try {
+              await _rxCharacteristic!.setNotifyValue(true);
+              _log('Notifications enabled');
+            } catch (e) {
+              // Some Pi-based BLE servers have broken CCCD but still send
+              // notifications automatically. Continue anyway.
+              _log('setNotifyValue failed (continuing): $e');
+            }
+
+            // Wait a moment for the subscription to register on the peripheral
+            await Future.delayed(const Duration(milliseconds: 200));
+
             _rxSubscription = _rxCharacteristic!.lastValueStream.listen(
               (data) {
                 if (data.isNotEmpty) {
@@ -174,7 +241,6 @@ class BluetoothLeService {
           }
 
           return true;
-        }
       }
 
       // If no known UART service found, try to find any writable/notify characteristics
@@ -195,8 +261,20 @@ class BluetoothLeService {
           _txCharacteristic = writeChar;
           _rxCharacteristic = notifyChar;
 
+          _log('Using fallback characteristics');
+          _log('TX: ${_txCharacteristic?.uuid}');
+          _log('RX: ${_rxCharacteristic?.uuid}');
+
           if (_rxCharacteristic != null) {
-            await _rxCharacteristic!.setNotifyValue(true);
+            await Future.delayed(const Duration(milliseconds: 100));
+            try {
+              await _rxCharacteristic!.setNotifyValue(true);
+              _log('Notifications enabled (fallback)');
+            } catch (e) {
+              _log('setNotifyValue failed (fallback, continuing): $e');
+            }
+            await Future.delayed(const Duration(milliseconds: 200));
+
             _rxSubscription = _rxCharacteristic!.lastValueStream.listen(
               (data) {
                 if (data.isNotEmpty) {
@@ -279,7 +357,9 @@ class BluetoothLeService {
 
   /// Send data as bytes
   Future<bool> sendBytes(Uint8List data) async {
+    _log('sendBytes called, data length: ${data.length}');
     if (!_isConnected || _txCharacteristic == null) {
+      _log('sendBytes failed: connected=$_isConnected, tx=$_txCharacteristic');
       onError?.call('Not connected or no TX characteristic');
       return false;
     }
@@ -289,12 +369,15 @@ class BluetoothLeService {
       // Split data if necessary
       final mtu = await _connectedDevice?.mtu.first ?? 20;
       final chunkSize = mtu - 3; // Account for ATT overhead
+      _log('MTU: $mtu, chunkSize: $chunkSize');
 
       if (data.length <= chunkSize) {
+        _log('Writing ${data.length} bytes to ${_txCharacteristic!.uuid}');
         await _txCharacteristic!.write(
           data.toList(),
-          withoutResponse: _txCharacteristic!.properties.writeWithoutResponse,
+          withoutResponse: true, // Use writeWithoutResponse 
         );
+        _log('Write completed');
       } else {
         // Send in chunks
         for (int i = 0; i < data.length; i += chunkSize) {
@@ -304,7 +387,7 @@ class BluetoothLeService {
           final chunk = data.sublist(i, end);
           await _txCharacteristic!.write(
             chunk.toList(),
-            withoutResponse: _txCharacteristic!.properties.writeWithoutResponse,
+            withoutResponse: true, // Use writeWithoutResponse
           );
           // Small delay between chunks to prevent buffer overflow
           await Future.delayed(const Duration(milliseconds: 20));

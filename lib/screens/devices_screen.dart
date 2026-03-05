@@ -7,7 +7,8 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../main.dart';
 import '../services/bluetooth_le_service.dart';
-import 'terminal_screen.dart';
+import '../services/mock_bluetooth_service.dart';
+import 'device_screen.dart';
 
 class DevicesScreen extends StatefulWidget {
   const DevicesScreen({super.key});
@@ -176,7 +177,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     _stopScan();
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => TerminalScreen(device: device)),
+      MaterialPageRoute(builder: (context) => DeviceScreen(device: device)),
     );
   }
 
@@ -196,8 +197,50 @@ class _DevicesScreenState extends State<DevicesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('> BLE_DEVICES'),
+        title: Row(
+          children: [
+            const Text('> BLE_DEVICES'),
+            if (TestMode.isEnabled) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: TerminalColors.yellow,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'TEST',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: TerminalColors.background,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
         actions: [
+          IconButton(
+            icon: Icon(
+              Icons.science,
+              color: TestMode.isEnabled ? TerminalColors.yellow : null,
+            ),
+            onPressed: () {
+              setState(() => TestMode.toggle());
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    TestMode.isEnabled
+                        ? 'Test mode enabled - connect to "WhalePi Simulator"'
+                        : 'Test mode disabled',
+                  ),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            tooltip: 'Toggle Test Mode',
+          ),
           if (_isScanning)
             IconButton(
               icon: const Icon(Icons.stop),
@@ -207,7 +250,9 @@ class _DevicesScreenState extends State<DevicesScreen> {
           else
             IconButton(
               icon: const Icon(Icons.search),
-              onPressed: _isBluetoothOn ? _startScan : null,
+              onPressed: _isBluetoothOn || TestMode.isEnabled
+                  ? _startScan
+                  : null,
               tooltip: 'Scan for Devices',
             ),
           IconButton(
@@ -227,8 +272,13 @@ class _DevicesScreenState extends State<DevicesScreen> {
   }
 
   Widget _buildBody() {
-    if (_isLoading) {
+    if (_isLoading && !TestMode.isEnabled) {
       return const Center(child: CircularProgressIndicator());
+    }
+
+    // In test mode, show test device even if Bluetooth is off
+    if (TestMode.isEnabled) {
+      return _buildTestModeBody();
     }
 
     if (!_isBluetoothOn) {
@@ -236,17 +286,34 @@ class _DevicesScreenState extends State<DevicesScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.bluetooth_disabled, size: 64, color: TerminalColors.red),
+            const Icon(
+              Icons.bluetooth_disabled,
+              size: 64,
+              color: TerminalColors.red,
+            ),
             const SizedBox(height: 16),
             const Text(
               '[ERROR] Bluetooth disabled',
-              style: TextStyle(fontSize: 16, fontFamily: 'monospace', color: TerminalColors.red),
+              style: TextStyle(
+                fontSize: 16,
+                fontFamily: 'monospace',
+                color: TerminalColors.red,
+              ),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: _enableBluetooth,
               icon: const Icon(Icons.bluetooth),
               label: const Text('ENABLE'),
+            ),
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: () => setState(() => TestMode.enable()),
+              icon: const Icon(Icons.science, size: 16),
+              label: const Text(
+                'Use Test Mode',
+                style: TextStyle(fontSize: 12),
+              ),
             ),
           ],
         ),
@@ -258,7 +325,11 @@ class _DevicesScreenState extends State<DevicesScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.bluetooth_searching, size: 64, color: TerminalColors.greenDim),
+            const Icon(
+              Icons.bluetooth_searching,
+              size: 64,
+              color: TerminalColors.primary,
+            ),
             const SizedBox(height: 16),
             const Text(
               '> No devices found',
@@ -268,7 +339,10 @@ class _DevicesScreenState extends State<DevicesScreen> {
             const Text(
               '  Run scan to discover\n  nearby BLE devices...',
               textAlign: TextAlign.left,
-              style: TextStyle(fontFamily: 'monospace', color: TerminalColors.grey),
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: TerminalColors.grey,
+              ),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
@@ -308,7 +382,10 @@ class _DevicesScreenState extends State<DevicesScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                   SizedBox(width: 12),
-                  Text('> Scanning...', style: TextStyle(fontFamily: 'monospace')),
+                  Text(
+                    '> Scanning...',
+                    style: TextStyle(fontFamily: 'monospace'),
+                  ),
                 ],
               ),
             ),
@@ -336,16 +413,33 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
   Widget _buildBondedDeviceTile(BluetoothDevice device) {
     return ListTile(
-      leading: const Text('>', style: TextStyle(fontFamily: 'monospace', color: TerminalColors.green)),
+      leading: const Text(
+        '>',
+        style: TextStyle(
+          fontFamily: 'monospace',
+          color: TerminalColors.primary,
+        ),
+      ),
       title: Text(
         device.platformName.isNotEmpty ? device.platformName : 'Unknown',
         style: const TextStyle(fontFamily: 'monospace'),
       ),
       subtitle: Text(
         device.remoteId.str,
-        style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: TerminalColors.grey),
+        style: const TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 12,
+          color: TerminalColors.grey,
+        ),
       ),
-      trailing: const Text('[PAIRED]', style: TextStyle(fontFamily: 'monospace', fontSize: 10, color: TerminalColors.cyan)),
+      trailing: const Text(
+        '[PAIRED]',
+        style: TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 10,
+          color: TerminalColors.cyan,
+        ),
+      ),
       onTap: () => _connectToDevice(device),
     );
   }
@@ -356,19 +450,24 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final advertisementName = result.advertisementData.advName;
     final displayName = advertisementName.isNotEmpty
         ? advertisementName
-        : (device.platformName.isNotEmpty
-              ? device.platformName
-              : 'Unknown');
+        : (device.platformName.isNotEmpty ? device.platformName : 'Unknown');
 
     return ListTile(
-      leading: const Text('>', style: TextStyle(fontFamily: 'monospace', color: TerminalColors.green)),
-      title: Text(
-        displayName,
-        style: const TextStyle(fontFamily: 'monospace'),
+      leading: const Text(
+        '>',
+        style: TextStyle(
+          fontFamily: 'monospace',
+          color: TerminalColors.primary,
+        ),
       ),
+      title: Text(displayName, style: const TextStyle(fontFamily: 'monospace')),
       subtitle: Text(
         device.remoteId.str,
-        style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: TerminalColors.grey),
+        style: const TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 12,
+          color: TerminalColors.grey,
+        ),
       ),
       trailing: Text(
         '${rssi}dBm',
@@ -383,8 +482,73 @@ class _DevicesScreenState extends State<DevicesScreen> {
   }
 
   Color _getRssiColor(int rssi) {
-    if (rssi >= -50) return TerminalColors.green;
+    if (rssi >= -50) return TerminalColors.accent;
     if (rssi >= -70) return TerminalColors.yellow;
     return TerminalColors.red;
+  }
+
+  Widget _buildTestModeBody() {
+    return ListView(
+      children: [
+        _buildSectionHeader('Test Mode'),
+        _buildTestDeviceTile(),
+        const SizedBox(height: 16),
+        if (_isBluetoothOn &&
+            (_bondedDevices.isNotEmpty || _scanResults.isNotEmpty)) ...[
+          if (_bondedDevices.isNotEmpty) ...[
+            _buildSectionHeader('Paired Devices'),
+            ..._bondedDevices.map((device) => _buildBondedDeviceTile(device)),
+          ],
+          if (_scanResults.isNotEmpty) ...[
+            _buildSectionHeader('Discovered Devices'),
+            ..._scanResults.map((result) => _buildScanResultTile(result)),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTestDeviceTile() {
+    return ListTile(
+      leading: const Icon(Icons.science, color: TerminalColors.yellow),
+      title: const Text(
+        'WhalePi Simulator',
+        style: TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold),
+      ),
+      subtitle: const Text(
+        'TEST-MODE-DEVICE',
+        style: TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 12,
+          color: TerminalColors.grey,
+        ),
+      ),
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          border: Border.all(color: TerminalColors.yellow),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: const Text(
+          'SIMULATOR',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 10,
+            color: TerminalColors.yellow,
+          ),
+        ),
+      ),
+      onTap: _connectToTestDevice,
+    );
+  }
+
+  void _connectToTestDevice() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            const DeviceScreen(device: null, isTestMode: true),
+      ),
+    );
   }
 }

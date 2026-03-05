@@ -36,7 +36,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
   final FocusNode _sendFocusNode = FocusNode();
 
   final List<Message> _messages = [];
-  
+
   bool _isConnecting = true;
   bool _isConnected = false;
   bool _hexMode = false;
@@ -84,8 +84,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
       _messages.clear();
     });
 
-    final deviceName = widget.device.platformName.isNotEmpty 
-        ? widget.device.platformName 
+    final deviceName = widget.device.platformName.isNotEmpty
+        ? widget.device.platformName
         : widget.device.remoteId.str;
     _addMessage(Message.status('Connecting to $deviceName...'));
 
@@ -93,7 +93,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
     if (mounted) {
       setState(() => _isConnecting = false);
-      
+
       if (success) {
         _addMessage(Message.status('Connected'));
       } else {
@@ -110,7 +110,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
       // Decode and handle text data
       final text = utf8.decode(data, allowMalformed: true);
       _receiveBuffer.write(text);
-      
+
       // Process complete lines or flush after a short delay
       _processReceivedText();
     }
@@ -118,23 +118,23 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
   void _processReceivedText() {
     final buffer = _receiveBuffer.toString();
-    
+
     // Split by common line endings
     final lines = buffer.split(RegExp(r'\r\n|\n|\r'));
-    
+
     // Add complete lines as messages
     for (int i = 0; i < lines.length - 1; i++) {
       if (lines[i].isNotEmpty) {
         _addMessage(Message.received(lines[i]));
       }
     }
-    
+
     // Keep the last incomplete line in the buffer
     _receiveBuffer.clear();
     if (lines.isNotEmpty) {
       _receiveBuffer.write(lines.last);
     }
-    
+
     // Flush remaining buffer after a delay if no newline received
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_receiveBuffer.isNotEmpty && mounted) {
@@ -148,7 +148,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
     setState(() {
       _messages.add(message);
     });
-    
+
     // Auto-scroll to bottom
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -166,9 +166,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
     if (text.isEmpty) return;
 
     if (!_isConnected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not connected')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Not connected')));
       return;
     }
 
@@ -182,7 +182,10 @@ class _TerminalScreenState extends State<TerminalScreen> {
       displayText = BluetoothLeService.bytesToHex(bytes);
     } else {
       // Send as text with line ending
-      success = await _bluetoothService.sendString(text, lineEnding: _lineEnding.value);
+      success = await _bluetoothService.sendString(
+        text,
+        lineEnding: _lineEnding.value,
+      );
       displayText = text;
     }
 
@@ -209,7 +212,13 @@ class _TerminalScreenState extends State<TerminalScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: TerminalColors.surface,
-        title: const Text('> Line Ending', style: TextStyle(fontFamily: 'monospace', color: TerminalColors.green)),
+        title: const Text(
+          '> Line Ending',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: TerminalColors.green,
+          ),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: LineEnding.values.map((ending) {
@@ -217,11 +226,17 @@ class _TerminalScreenState extends State<TerminalScreen> {
             return ListTile(
               leading: Text(
                 isSelected ? '[*]' : '[ ]',
-                style: const TextStyle(fontFamily: 'monospace', color: TerminalColors.green),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  color: TerminalColors.green,
+                ),
               ),
               title: Text(
                 ending.label,
-                style: const TextStyle(fontFamily: 'monospace', color: TerminalColors.green),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  color: TerminalColors.green,
+                ),
               ),
               onTap: () {
                 setState(() => _lineEnding = ending);
@@ -236,10 +251,10 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final deviceName = widget.device.platformName.isNotEmpty 
-        ? widget.device.platformName 
+    final deviceName = widget.device.platformName.isNotEmpty
+        ? widget.device.platformName
         : 'Terminal';
-    
+
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -253,8 +268,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
               _isConnecting
                   ? '[CONNECTING...]'
                   : _isConnected
-                      ? '[CONNECTED]'
-                      : '[DISCONNECTED]',
+                  ? '[CONNECTED]'
+                  : '[DISCONNECTED]',
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 10,
@@ -305,7 +320,10 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   children: [
                     Icon(Icons.refresh, color: TerminalColors.green),
                     SizedBox(width: 8),
-                    Text('Reconnect', style: TextStyle(fontFamily: 'monospace')),
+                    Text(
+                      'Reconnect',
+                      style: TextStyle(fontFamily: 'monospace'),
+                    ),
                   ],
                 ),
               ),
@@ -315,7 +333,10 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   children: [
                     Icon(Icons.close, color: TerminalColors.red),
                     SizedBox(width: 8),
-                    Text('Disconnect', style: TextStyle(fontFamily: 'monospace')),
+                    Text(
+                      'Disconnect',
+                      style: TextStyle(fontFamily: 'monospace'),
+                    ),
                   ],
                 ),
               ),
@@ -326,9 +347,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
       body: Column(
         children: [
           // Messages area
-          Expanded(
-            child: _buildMessageList(),
-          ),
+          Expanded(child: _buildMessageList()),
           // Input area
           _buildInputArea(),
         ],
@@ -350,7 +369,11 @@ class _TerminalScreenState extends State<TerminalScreen> {
             const SizedBox(height: 16),
             Text(
               _isConnecting ? '> Connecting...' : '> Waiting for data...',
-              style: const TextStyle(fontFamily: 'monospace', color: TerminalColors.greenDim, fontSize: 14),
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                color: TerminalColors.greenDim,
+                fontSize: 14,
+              ),
             ),
             if (!_isConnecting && !_isConnected) ...[
               const SizedBox(height: 8),
@@ -453,7 +476,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 16,
-                color: _isConnected ? TerminalColors.green : TerminalColors.grey,
+                color: _isConnected
+                    ? TerminalColors.green
+                    : TerminalColors.grey,
               ),
             ),
             Expanded(
@@ -466,7 +491,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   fontSize: 14,
                 ),
                 decoration: InputDecoration(
-                  hintText: _hexMode ? 'HEX: 48 65 6C 6C 6F' : 'Enter command...',
+                  hintText: _hexMode
+                      ? 'HEX: 48 65 6C 6C 6F'
+                      : 'Enter command...',
                   hintStyle: const TextStyle(
                     fontFamily: 'monospace',
                     color: TerminalColors.grey,
@@ -485,10 +512,15 @@ class _TerminalScreenState extends State<TerminalScreen> {
             GestureDetector(
               onTap: _isConnected ? _send : null,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: _isConnected ? TerminalColors.green : TerminalColors.grey,
+                    color: _isConnected
+                        ? TerminalColors.green
+                        : TerminalColors.grey,
                   ),
                 ),
                 child: Text(
@@ -496,7 +528,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 12,
-                    color: _isConnected ? TerminalColors.green : TerminalColors.grey,
+                    color: _isConnected
+                        ? TerminalColors.green
+                        : TerminalColors.grey,
                   ),
                 ),
               ),

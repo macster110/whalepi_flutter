@@ -1,10 +1,10 @@
-## Bluetooth LE Terminal - Flutter App
+## WhalePi BLE Terminal - Flutter App
 
-This is a Flutter implementation of a Bluetooth Low Energy Terminal for UART-style communication.
+This is a Flutter app for communicating with WhalePi passive acoustic recording devices via Bluetooth Low Energy.
 
 ### Project Details
 
-- **Type**: Flutter Mobile Application (BLE Terminal)
+- **Type**: Flutter Mobile Application (WhalePi Controller)
 - **Framework**: Flutter 3.41.2
 - **Language**: Dart 3.11.0
 - **Organization**: com.whalepi
@@ -19,20 +19,26 @@ This is a Flutter implementation of a Bluetooth Low Energy Terminal for UART-sty
 
 ```
 lib/
-├── main.dart                          # App entry point
-├── models/message.dart                # Message model
-├── screens/devices_screen.dart        # Device list
-├── screens/terminal_screen.dart       # Terminal UI
-└── services/bluetooth_le_service.dart
+├── main.dart                          # App entry point, theme
+├── models/
+│   ├── message.dart                   # Terminal message model
+│   └── pamguard_summary.dart          # PAMGuard data model
+├── screens/
+│   ├── devices_screen.dart            # BLE device list
+│   ├── device_screen.dart             # Main device view (tabs)
+│   └── summary_screen.dart            # PAMGuard summary GUI
+└── services/
+    └── bluetooth_le_service.dart      # BLE UART service
 ```
 
 ### Features
 
-- Device discovery and paired device list
-- Terminal-style send/receive interface
-- HEX mode toggle
-- Configurable line endings
-- Connection status indicators
+- BLE device discovery and connection
+- **Summary View**: GUI for PAMGuard status (audio levels, GPS, recorder, temperature)
+- **Terminal View**: Raw command/response interface
+- Commands: ping, status, summary, start, stop
+- HEX mode and configurable line endings
+- Raspberry Pi terminal styling
 
 ### Development Commands
 
@@ -48,3 +54,4 @@ flutter test             # Run tests
 - Supports Android, iOS, and macOS
 - Uses Bluetooth Low Energy (BLE) with UART services (Nordic UART, HM-10, etc.)
 - Requires physical device for testing (simulators/emulators don't support BLE)
+- Parses XML data from WhalePi watchdog (PAMGuard summaries)
