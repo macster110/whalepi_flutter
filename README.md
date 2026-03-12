@@ -2,7 +2,7 @@
 
 A Flutter mobile application for communicating with WhalePi passive acoustic recording devices via Bluetooth Low Energy (BLE).
 
-![App Screenshot](assets/Screenshot_20260309-212042.png)
+<img src="assets/Screenshot_20260309-212042.png" width="300" alt="App Screenshot">
 
 ## Features
 
