@@ -1,8 +1,11 @@
 # WhalePi BLE Terminal
 
-A Flutter mobile application for communicating with WhalePi passive acoustic recording devices via Bluetooth Low Energy (BLE).
+A Flutter mobile application for communicating with [WhalePi](https://github.com/WhalePi/install_whalepi) passive acoustic recording devices via Bluetooth Low Energy (BLE).
 
-<img src="assets/Screenshot_20260309-212042.png" width="300" alt="App Screenshot">
+<p align="center">
+  <img width="300" src="assets/Screenshot_20260309-212042.png">
+</p>
+
 
 ## Features
 
