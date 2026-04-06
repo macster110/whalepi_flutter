@@ -118,6 +118,7 @@ class BluetoothLeService {
 
       // Connect to the device
       await device.connect(
+        license: License.free,
         timeout: const Duration(seconds: 15),
         autoConnect: false,
       );

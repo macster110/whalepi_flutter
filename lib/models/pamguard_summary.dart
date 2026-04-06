@@ -98,6 +98,23 @@ class AnalogSensorData {
   });
 }
 
+/// PAMGuard database summary
+class DatabaseSummary {
+  final String dbName;
+  final int autoCommit;
+  final int writes;
+  final int fails;
+
+  DatabaseSummary({
+    this.dbName = '',
+    this.autoCommit = 0,
+    this.writes = 0,
+    this.fails = 0,
+  });
+
+  bool get hasFailures => fails > 0;
+}
+
 /// Main PAMGuard summary container
 class PamGuardSummary {
   final DateTime receivedAt;
@@ -107,6 +124,8 @@ class PamGuardSummary {
   final String nmeaSentence;
   final List<AnalogSensorData> analogSensors;
   final double piTemperature;
+  final DateTime? pamGuardTime;
+  final DatabaseSummary? database;
 
   PamGuardSummary({
     DateTime? receivedAt,
@@ -116,6 +135,8 @@ class PamGuardSummary {
     this.nmeaSentence = '',
     this.analogSensors = const [],
     this.piTemperature = 0.0,
+    this.pamGuardTime,
+    this.database,
   }) : receivedAt = receivedAt ?? DateTime.now(),
        gps = gps ?? GpsSummary(),
        recorder = recorder ?? RecorderSummary();
@@ -259,6 +280,51 @@ class PamGuardSummary {
         piTemp = double.tryParse(tempMatch.group(1) ?? '0') ?? 0.0;
       }
 
+      // Parse PAMGUARD section (optional, for backward compatibility)
+      DateTime? pamGuardTime;
+      final pamguardMatch = RegExp(
+        r'<PAMGUARD>(.*?)<\\PAMGUARD>',
+        dotAll: true,
+      ).firstMatch(rawData);
+      if (pamguardMatch != null) {
+        final pamData = pamguardMatch.group(1) ?? '';
+        final sysTimeMatch = RegExp(
+          r'<SYSTIME>(.*?)<\\SYSTIME>',
+          dotAll: true,
+        ).firstMatch(pamData);
+        if (sysTimeMatch != null) {
+          final timeStr = sysTimeMatch.group(1)?.trim();
+          if (timeStr != null) {
+            pamGuardTime = DateTime.tryParse(
+              timeStr.replaceAll(' ', 'T'),
+            );
+          }
+        }
+      }
+
+      // Parse Pamguard Database (optional, for backward compatibility)
+      DatabaseSummary? database;
+      final dbMatch = RegExp(
+        r'<Pamguard Database>(.*?)<\\Pamguard Database>',
+        dotAll: true,
+      ).firstMatch(rawData);
+      if (dbMatch != null) {
+        final dbData = dbMatch.group(1) ?? '';
+        final dbName = _extractTag(dbData, 'DBNAME') ?? '';
+        final autoCommit =
+            int.tryParse(_extractTag(dbData, 'AUTOCOMMIT') ?? '0') ?? 0;
+        final writes =
+            int.tryParse(_extractTag(dbData, 'WRITES') ?? '0') ?? 0;
+        final fails =
+            int.tryParse(_extractTag(dbData, 'FAILS') ?? '0') ?? 0;
+        database = DatabaseSummary(
+          dbName: dbName,
+          autoCommit: autoCommit,
+          writes: writes,
+          fails: fails,
+        );
+      }
+
       return PamGuardSummary(
         audioChannels: channels,
         gps: gps,
@@ -266,6 +332,8 @@ class PamGuardSummary {
         nmeaSentence: nmeaSentence,
         analogSensors: analogSensors,
         piTemperature: piTemp,
+        pamGuardTime: pamGuardTime,
+        database: database,
       );
     } catch (e) {
       return null;

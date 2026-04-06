@@ -206,6 +206,12 @@ class MockBluetoothService {
     </Depth>
   </AnalogSensorsSummary>
   <NMEA Data>GPS:\$GPRMC,$timeStr,A,${lat.toStringAsFixed(4)},N,${lon.abs().toStringAsFixed(4)},W,0.0,${heading.toStringAsFixed(1)},${now.day.toString().padLeft(2, '0')}${now.month.toString().padLeft(2, '0')}${now.year % 100},,,A*00<\\NMEA Data>
+  <PAMGUARD>
+<SYSTIME>${now.toUtc().toIso8601String().replaceAll('T', ' ').split('Z').first}<\\SYSTIME>
+<STATUS>${_isRecording ? 1 : 0}<\\STATUS>
+<STATE>${_isRecording ? 1 : 0}<\\STATE>
+<\\PAMGUARD>
+  <Pamguard Database>Database:<DBNAME>whalepi_database.sqlite3</DBNAME><AUTOCOMMIT>0</AUTOCOMMIT><WRITES>${_isRecording ? 100 + _random.nextInt(500) : 0}</WRITES><FAILS>0</FAILS><\\Pamguard Database>
   temp=${_piTemperature.toStringAsFixed(1)}
 </WhalePiSummary>''';
   }

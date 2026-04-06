@@ -46,6 +46,8 @@ class _DeviceScreenState extends State<DeviceScreen> {
   final List<Message> _messages = [];
   final StreamController<PamGuardSummary> _summaryController =
       StreamController<PamGuardSummary>.broadcast();
+  final StreamController<WhalePiStatus> _statusController =
+      StreamController<WhalePiStatus>.broadcast();
   PamGuardSummary? _lastSummary;
   WhalePiStatus? _lastStatus;
   final GlobalKey<State<SummaryScreen>> _summaryKey = GlobalKey();
@@ -92,6 +94,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
     _scrollController.dispose();
     _sendFocusNode.dispose();
     _summaryController.close();
+    _statusController.close();
     _summaryDebounce?.cancel();
     _statusDebounce?.cancel();
     if (_isTestMode) {
@@ -220,6 +223,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
       final status = WhalePiStatus.parse(data);
       if (mounted) {
         setState(() => _lastStatus = status);
+        _statusController.add(status);
       }
     }
   }
@@ -477,19 +481,20 @@ class _DeviceScreenState extends State<DeviceScreen> {
             child: IndexedStack(
               index: _currentTab,
               children: [
-          // Summary tab
-          SummaryScreen(
-            key: _summaryKey,
-            device: widget.device,
-            bluetoothService: _bluetoothService,
-            mockService: _mockService,
-            isTestMode: _isTestMode,
-            summaryStream: _summaryController.stream,
-            initialSummary: _lastSummary,
-          ),
-          // Terminal tab
-          _buildTerminalView(),
-        ],
+                // Summary tab
+                SummaryScreen(
+                  key: _summaryKey,
+                  device: widget.device,
+                  bluetoothService: _bluetoothService,
+                  mockService: _mockService,
+                  isTestMode: _isTestMode,
+                  summaryStream: _summaryController.stream,
+                  initialSummary: _lastSummary,
+                  statusStream: _statusController.stream,
+                ),
+                // Terminal tab
+                _buildTerminalView(),
+              ],
             ),
           ),
         ],

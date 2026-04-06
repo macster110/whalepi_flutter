@@ -5,8 +5,11 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../main.dart';
 import '../models/pamguard_summary.dart';
+import '../models/whalepi_status.dart';
 import '../services/bluetooth_le_service.dart';
 import '../services/mock_bluetooth_service.dart';
+
+enum _PamState { running, idle, stalled, unknown }
 
 class SummaryScreen extends StatefulWidget {
   final BluetoothDevice? device;
@@ -15,6 +18,7 @@ class SummaryScreen extends StatefulWidget {
   final bool isTestMode;
   final Stream<PamGuardSummary> summaryStream;
   final PamGuardSummary? initialSummary;
+  final Stream<WhalePiStatus>? statusStream;
 
   const SummaryScreen({
     super.key,
@@ -24,6 +28,7 @@ class SummaryScreen extends StatefulWidget {
     this.isTestMode = false,
     required this.summaryStream,
     this.initialSummary,
+    this.statusStream,
   });
 
   @override
@@ -34,6 +39,10 @@ class _SummaryScreenState extends State<SummaryScreen>
     with WidgetsBindingObserver {
   PamGuardSummary? _summary;
   StreamSubscription<PamGuardSummary>? _summarySubscription;
+  WhalePiStatus? _pamStatus;
+  StreamSubscription<WhalePiStatus>? _statusSubscription;
+  String? _pendingAction; // 'start' | 'stop' | null
+  Timer? _commandTimer;
   bool _isSending = false;
   DateTime? _lastUpdate;
   bool _autoRefresh = false;
@@ -57,6 +66,36 @@ class _SummaryScreenState extends State<SummaryScreen>
         _lastUpdate = DateTime.now();
       });
     });
+
+    if (widget.statusStream != null) {
+      _statusSubscription = widget.statusStream!.listen((status) {
+        if (!mounted) return;
+        final prevState = _pamStateFromStatus(_pamStatus);
+        setState(() => _pamStatus = status);
+        final newState = _pamStateFromStatus(status);
+        // Clear pending action as soon as the status transitions
+        if (_pendingAction != null && prevState != newState) {
+          _commandTimer?.cancel();
+          setState(() => _pendingAction = null);
+        }
+      });
+    }
+  }
+
+  _PamState _pamStateFromStatus(WhalePiStatus? status) {
+    if (status == null) return _PamState.unknown;
+    switch (status.pamguardStatus.toUpperCase()) {
+      case 'RUNNING':
+        return _PamState.running;
+      case 'STOPPED':
+      case 'IDLE':
+        return _PamState.idle;
+      case 'STALLED':
+      case 'ERROR':
+        return _PamState.stalled;
+      default:
+        return _PamState.unknown;
+    }
   }
 
   @override
@@ -76,6 +115,8 @@ class _SummaryScreenState extends State<SummaryScreen>
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
     _summarySubscription?.cancel();
+    _statusSubscription?.cancel();
+    _commandTimer?.cancel();
     super.dispose();
   }
 
@@ -119,6 +160,15 @@ class _SummaryScreenState extends State<SummaryScreen>
     if (_isSending || !_isConnected) return;
 
     setState(() => _isSending = true);
+
+    if (command == 'start' || command == 'stop') {
+      _commandTimer?.cancel();
+      setState(() => _pendingAction = command);
+      _commandTimer = Timer(const Duration(seconds: 10), () {
+        if (mounted) setState(() => _pendingAction = null);
+      });
+    }
+
     if (widget.isTestMode) {
       await widget.mockService?.sendString(command);
     } else {
@@ -257,6 +307,12 @@ class _SummaryScreenState extends State<SummaryScreen>
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
+        // PAMGuard Time (only shown when available)
+        if (_summary!.pamGuardTime != null)
+          _PamGuardTimeRow(pamGuardTime: _summary!.pamGuardTime!),
+
+        if (_summary!.pamGuardTime != null) const SizedBox(height: 12),
+
         // Sound Acquisition
         _SectionCard(
           title: 'Sound Acquisition',
@@ -331,6 +387,15 @@ class _SummaryScreenState extends State<SummaryScreen>
           title: 'Pi Temperature',
           child: _TemperatureBar(temperature: _summary!.piTemperature),
         ),
+
+        // Database
+        if (_summary!.database != null) const SizedBox(height: 12),
+
+        if (_summary!.database != null)
+          _SectionCard(
+            title: 'PAMGuard Database',
+            child: _DatabaseSection(database: _summary!.database!),
+          ),
       ],
     );
   }
@@ -403,26 +468,48 @@ class _SummaryScreenState extends State<SummaryScreen>
             ],
           ),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _CommandButton(
-                  label: 'START',
-                  color: TerminalColors.accent,
-                  onPressed: isConnected ? () => _sendCommand('start') : null,
-                  isLoading: _isSending,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _CommandButton(
-                  label: 'STOP',
-                  color: TerminalColors.red,
-                  onPressed: isConnected ? () => _sendCommand('stop') : null,
-                  isLoading: _isSending,
-                ),
-              ),
-            ],
+          Builder(
+            builder: (context) {
+              final pamState = _pamStateFromStatus(_pamStatus);
+              final startLoading = _pendingAction == 'start';
+              final stopLoading = _pendingAction == 'stop';
+              // START looks dimmed when PAMGuard is running or stalled
+              final startDimmed =
+                  !startLoading &&
+                  (pamState == _PamState.running ||
+                      pamState == _PamState.stalled);
+              // STOP looks dimmed when PAMGuard is idle or stalled
+              final stopDimmed =
+                  !stopLoading &&
+                  (pamState == _PamState.idle || pamState == _PamState.stalled);
+              return Row(
+                children: [
+                  Expanded(
+                    child: _CommandButton(
+                      label: 'START',
+                      color: TerminalColors.accent,
+                      onPressed: isConnected
+                          ? () => _sendCommand('start')
+                          : null,
+                      isLoading: startLoading,
+                      dimmed: startDimmed,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _CommandButton(
+                      label: 'STOP',
+                      color: TerminalColors.red,
+                      onPressed: isConnected
+                          ? () => _sendCommand('stop')
+                          : null,
+                      isLoading: stopLoading,
+                      dimmed: stopDimmed,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -435,28 +522,36 @@ class _CommandButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   final bool isLoading;
+
+  /// Greyed-out look but button remains tappable.
+  final bool dimmed;
   final Color? color;
 
   const _CommandButton({
     required this.label,
     this.onPressed,
     this.isLoading = false,
+    this.dimmed = false,
     this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     final buttonColor = color ?? TerminalColors.primary;
+    // A button is visually disabled if no callback or loading (not for dimmed —
+    // dimmed is clickable).
     final isEnabled = onPressed != null && !isLoading;
+    final effectiveColor = dimmed
+        ? TerminalColors.grey
+        : (isEnabled ? buttonColor : TerminalColors.grey);
 
     return GestureDetector(
-      onTap: isEnabled ? onPressed : null,
+      // dimmed buttons are still tappable
+      onTap: (onPressed != null && !isLoading) ? onPressed : null,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: isEnabled ? buttonColor : TerminalColors.grey,
-          ),
+          border: Border.all(color: effectiveColor),
           color: TerminalColors.background,
         ),
         child: Center(
@@ -474,7 +569,7 @@ class _CommandButton extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'monospace',
                     fontWeight: FontWeight.bold,
-                    color: isEnabled ? buttonColor : TerminalColors.grey,
+                    color: effectiveColor,
                   ),
                 ),
         ),
@@ -523,6 +618,69 @@ class _SectionCard extends StatelessWidget {
             ),
           ),
           Padding(padding: const EdgeInsets.all(12), child: child),
+        ],
+      ),
+    );
+  }
+}
+
+// PAMGuard time row — highlights red when >10s from phone UTC
+class _PamGuardTimeRow extends StatelessWidget {
+  final DateTime pamGuardTime;
+
+  const _PamGuardTimeRow({required this.pamGuardTime});
+
+  @override
+  Widget build(BuildContext context) {
+    final nowUtc = DateTime.now().toUtc();
+    // pamGuardTime was parsed without timezone info, treat as UTC
+    final pamUtc = pamGuardTime.isUtc
+        ? pamGuardTime
+        : DateTime.utc(
+            pamGuardTime.year,
+            pamGuardTime.month,
+            pamGuardTime.day,
+            pamGuardTime.hour,
+            pamGuardTime.minute,
+            pamGuardTime.second,
+            pamGuardTime.millisecond,
+          );
+    final diff = nowUtc.difference(pamUtc).abs();
+    final isStale = diff.inSeconds > 10;
+
+    final timeStr =
+        '${pamUtc.year}-${pamUtc.month.toString().padLeft(2, '0')}-${pamUtc.day.toString().padLeft(2, '0')} '
+        '${pamUtc.hour.toString().padLeft(2, '0')}:${pamUtc.minute.toString().padLeft(2, '0')}:${pamUtc.second.toString().padLeft(2, '0')} UTC';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: isStale
+              ? TerminalColors.red.withValues(alpha: 0.6)
+              : TerminalColors.primary.withValues(alpha: 0.4),
+        ),
+        color: TerminalColors.surface,
+      ),
+      child: Row(
+        children: [
+          const Text(
+            'PAMGuard Time: ',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 12,
+              color: TerminalColors.grey,
+            ),
+          ),
+          Text(
+            timeStr,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: isStale ? TerminalColors.red : TerminalColors.text,
+            ),
+          ),
         ],
       ),
     );
@@ -932,6 +1090,109 @@ class _TemperatureBar extends StatelessWidget {
         const SizedBox(width: 12),
         Text(
           '${temperature.toStringAsFixed(1)} °C',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Database section
+class _DatabaseSection extends StatelessWidget {
+  final DatabaseSummary database;
+
+  const _DatabaseSection({required this.database});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'DB: ',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: TerminalColors.grey,
+              ),
+            ),
+            Expanded(
+              child: Text(
+                database.dbName,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: TerminalColors.text,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _DbStat(
+              label: 'WRITES',
+              value: database.writes.toString(),
+              color: TerminalColors.accent,
+            ),
+            const SizedBox(width: 16),
+            _DbStat(
+              label: 'FAILS',
+              value: database.fails.toString(),
+              color: database.hasFailures
+                  ? TerminalColors.red
+                  : TerminalColors.accent,
+            ),
+            const SizedBox(width: 16),
+            _DbStat(
+              label: 'AUTOCOMMIT',
+              value: database.autoCommit == 1 ? 'ON' : 'OFF',
+              color: TerminalColors.textDim,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DbStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _DbStat({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 10,
+            color: TerminalColors.grey,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
           style: TextStyle(
             fontFamily: 'monospace',
             fontSize: 14,
